@@ -1,0 +1,10 @@
+# robots.txt — MultiEdit PTG Designer (ICAR-IARI & ICAR-IASRI)
+# results.php is kept out of the index via a `noindex` meta tag (not Disallow),
+# so search engines can still crawl it and honour the tag.
+User-agent: *
+Allow: /
+Disallow: /globe-data.php
+Disallow: /data/
+Disallow: /.claude/
+
+Sitemap: https://multieditptgd2.abrl.in/sitemap.xml

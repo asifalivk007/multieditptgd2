@@ -1,0 +1,19 @@
+# Normalise line endings: LF in the repository, native in the working tree.
+# The project is edited from Windows but deployed to Linux/Apache, so without
+# this, CRLF creeps into PHP/JS and shows up as whole-file diffs.
+* text=auto eol=lf
+
+# Binary assets — never diff or convert these.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+
+# Keep vendored libraries out of language stats and diffs on GitHub.
+assets/vendor/** linguist-vendored

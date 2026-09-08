@@ -1,0 +1,37 @@
+MultiEdit PTG Designer 2.0 — Copyright and Attribution
+
+Copyright (c) 2026 ICAR-Indian Agricultural Research Institute (IARI), New Delhi and
+ICAR-Indian Agricultural Statistics Research Institute (IASRI), New Delhi.
+
+
+Algorithmic basis
+-----------------
+The polycistronic tRNA-gRNA (PTG) design procedure implements and extends the
+approach established in the first version of this tool:
+
+  [AUTHORS]. [TITLE]. International Journal of Biological Macromolecules
+  [VOLUME], [PAGES] ([YEAR]).
+  https://doi.org/[DOI]
+
+Version 2.0 extends that work with support for up to 12 spacers, 12 Type IIS
+restriction enzymes, selectable native (76 nt) and engineered (86 nt) gRNA
+scaffolds, configurable Cas9 plasmid vector overhangs, and internal recognition
+site detection.
+
+
+Use
+---
+This software is provided for academic and non-commercial research use.
+If you use MultiEdit PTG Designer 2.0 in work that leads to a publication,
+please cite the reference above.
+
+Data made available through this platform is subject to the ICAR Data Use
+Licence, included in this repository at data/ICAR_Data_Use_Licence.pdf.
+
+
+Disclaimer
+----------
+This software is provided "as is", without warranty of any kind, express or
+implied. The designs it generates are computational predictions intended to
+support experimental work, not to replace experimental validation. The authors
+and their institutions accept no liability for any outcome arising from its use.

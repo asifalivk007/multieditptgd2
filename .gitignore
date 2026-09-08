@@ -1,0 +1,43 @@
+# ============================================================================
+#  MultiEdit PTG Designer — git exclusions
+# ============================================================================
+
+# ---- SECRETS — never commit -------------------------------------------------
+# Umami API username/password used by globe-data.php.
+# Deploy this file manually on the server; see umami_config.example.php.
+assets/images/others/umami_config.php
+
+# Generic secret patterns, in case config moves later
+.env
+.env.*
+*.key
+*.pem
+*credentials*.php
+*secret*.php
+
+# ---- Runtime caches written by globe-data.php -------------------------------
+# Regenerated automatically. They hold visitor city-level location data, so
+# keeping them out of the repo avoids both merge conflicts and leaking traffic
+# data about the site's users.
+globe_cache.json
+city_coords.json
+
+# ---- Editor / OS cruft ------------------------------------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# ---- Logs / backups ---------------------------------------------------------
+*.log
+*.bak
+*.old
+*.orig
+*.rej
+
+# ---- Local tooling ----------------------------------------------------------
+.claude/
