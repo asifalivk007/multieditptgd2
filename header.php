@@ -713,7 +713,7 @@ $ptg_ogimg  = $ptg_site . '/assets/images/design_figure.jpg';
     }
   </style>
 
-  <script defer src="https://asifalivk7analytics.duckdns.org/script.js" data-website-id="6b8330b6-0033-4242-8fee-f7cec5c08052"></script>
+  <script defer src="https://website-analytics.abrl.in/script.js" data-website-id="27da9533-6a30-4462-8965-76282d1a44b4"></script>
 </head>
 
 <body class="index-page">

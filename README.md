@@ -5,7 +5,7 @@ CRISPR-Cas9 multiplex gene editing. It automates spacer-specific primer design,
 module PCR product calculation, Golden Gate digestion, and full cassette assembly —
 targeting up to **12 genes simultaneously** in a single construct.
 
-Developed at **ICAR-IASRI** in collaboration with **ICAR-IARI**, New Delhi.
+Developed by **ICAR-IARI**, New Delhi and **ICAR-IASRI**, New Delhi.
 
 🔗 **Live:** https://multieditptgd2.abrl.in
 
@@ -43,58 +43,16 @@ Use **Load Example** to explore a pre-filled design.
 
 Plain PHP includes with vanilla JavaScript — no framework, no build step.
 
-| Path | Role |
-|------|------|
-| `index.php` | Landing page, template sequences |
-| `tool.php` | Design input form |
-| `results.php` | Renders results from `localStorage` |
-| `documentation.php` | Methodology, enzyme and output reference |
-| `team.php` | Research team and contact |
-| `header.php` / `footer.php` | Shared layout, included by every page |
-| `assets/js/ptg-designer.js` | Design engine — sequence library, primer/PCR/digest generation, colour coding |
-| `assets/js/ptg-export.js` | Excel export (SheetJS) and clipboard helpers |
-| `globe-data.php` | Umami analytics feed for the footer visitor globe |
-
-Vendored front-end libraries (Bootstrap, Font Awesome, AOS, PureCounter) live in
-`assets/vendor/` and are committed — there is no package manager step.
-
-## Deployment
-
-Apache with PHP and `mod_rewrite`, `mod_headers`, `mod_deflate`, `mod_expires`,
-`mod_alias` enabled:
-
-```bash
-sudo a2enmod headers rewrite deflate expires alias && sudo systemctl reload apache2
-```
-
-Every directive in `.htaccess` is wrapped in `<IfModule>`, so a disabled module
-degrades gracefully rather than returning a 500.
-
-### Analytics configuration
-
-The footer visitor globe needs Umami credentials, which are **not** in this
-repository. On the server, create the config from the template:
-
-```bash
-cp assets/images/others/umami_config.example.php assets/images/others/umami_config.php
-```
-
-Then fill in the real values. This file is git-ignored and blocked from web access
-by `.htaccess`. Never commit it.
-
-`globe_cache.json` and `city_coords.json` are runtime caches written by
-`globe-data.php`; they are git-ignored and regenerate automatically.
-
 ## Citation
 
-If you use this tool in published work, please cite the reference in
-[`LICENSE`](LICENSE).
+If you use this tool in published work, please cite:
+
+"Paper to be published, v2"
 
 ## Licence
 
-Copyright (c) 2026 ICAR-IARI and ICAR-IASRI, New Delhi.
+Copyright (c) 2026 ICAR-IARI, New Delhi and ICAR-IASRI, New Delhi.
 Academic and non-commercial research use — see [`LICENSE`](LICENSE).
-Data is subject to the [ICAR Data Use Licence](data/ICAR_Data_Use_Licence.pdf).
 
 ## Contact
 

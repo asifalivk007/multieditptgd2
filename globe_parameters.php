@@ -618,7 +618,7 @@ $dataScriptDir = rtrim(dirname($_SERVER["SCRIPT_NAME"]), "/\\");
           </div>
           <div class="field">
             <label for="clickUrl">Click-through URL</label>
-            <input type="text" id="clickUrl" value="https://asifalivk7analytics.duckdns.org/share/x2dNpydLzTqQpfVu">
+            <input type="text" id="clickUrl" value="https://website-analytics.abrl.in/share/ghT01ZLNHpMNu2dt">
           </div>
         </div>
       </details>
@@ -742,7 +742,7 @@ $dataScriptDir = rtrim(dirname($_SERVER["SCRIPT_NAME"]), "/\\");
     enableZoom: false,
     enablePan: false,
     hoverResumeDelay: 2000,
-    clickUrl: 'https://asifalivk7analytics.duckdns.org/share/x2dNpydLzTqQpfVu',
+    clickUrl: 'https://website-analytics.abrl.in/share/ghT01ZLNHpMNu2dt',
     counterTextColor: '#000000',
     counterBorderColor: '#000000',
     counterBorderRadius: 12,

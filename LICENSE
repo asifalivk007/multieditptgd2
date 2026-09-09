@@ -6,12 +6,15 @@ ICAR-Indian Agricultural Statistics Research Institute (IASRI), New Delhi.
 
 Algorithmic basis
 -----------------
-The polycistronic tRNA-gRNA (PTG) design procedure implements and extends the
-approach established in the first version of this tool:
+The polycistronic tRNA-gRNA (PTG) design procedure, including the engineered
+gRNA scaffold offered as the default in this tool, implements and extends the
+approach described in:
 
-  [AUTHORS]. [TITLE]. International Journal of Biological Macromolecules
-  [VOLUME], [PAGES] ([YEAR]).
-  https://doi.org/[DOI]
+  Dutta, T.K., Ray, S., Akhil, V.S., Rupinikrishna, K., Chauhan, U., Dutta, A.,
+  Vijayan, J., Iquebal, M.A., Chinnusamy, V. A synthetic guide RNA scaffold
+  enhanced CRISPR/Cas9 editing efficiency in plants across multiple gene targets.
+  International Journal of Biological Macromolecules 365, 152456 (2026).
+  https://doi.org/10.1016/j.ijbiomac.2026.152456
 
 Version 2.0 extends that work with support for up to 12 spacers, 12 Type IIS
 restriction enzymes, selectable native (76 nt) and engineered (86 nt) gRNA
@@ -23,7 +26,9 @@ Use
 ---
 This software is provided for academic and non-commercial research use.
 If you use MultiEdit PTG Designer 2.0 in work that leads to a publication,
-please cite the reference above.
+please cite the reference below.
+
+"Paper to be published yet: v2"
 
 Data made available through this platform is subject to the ICAR Data Use
 Licence, included in this repository at data/ICAR_Data_Use_Licence.pdf.

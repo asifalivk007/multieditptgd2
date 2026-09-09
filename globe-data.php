@@ -10,7 +10,7 @@ $config = require_once('assets/images/others/umami_config.php');
 
 // --- CONFIGURATION ---
 // We default to your main analytics server, but allow overriding in umami_config.php
-$umami_url  = isset($config['umami_url']) ? $config['umami_url'] : 'https://asifalivk7analytics.duckdns.org';
+$umami_url  = isset($config['umami_url']) ? $config['umami_url'] : 'https://website-analytics.abrl.in';
 $username   = $config['username'];
 $password   = $config['password'];
 $website_id = $config['website_id']; 
