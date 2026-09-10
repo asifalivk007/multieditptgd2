@@ -86,11 +86,12 @@
                 </div>
                 <div class="social-links d-flex gap-2 ms-lg-4">
                   <a href="https://github.com/asifalivk007/multieditptgd2" title="GitHub" target="_blank" rel="noopener"><i class="bi bi-github"></i></a>
-                  <a href="#" title="Publication"><i class="bi bi-mortarboard-fill" target="_blank"></i></a>
+                  <!-- href is a placeholder until the v2 paper is published. -->
+                  <a href="#" title="Publication" target="_blank" rel="noopener"><i class="bi bi-mortarboard-fill"></i></a>
                   <!-- Gmail compose endpoint rather than mailto: — a mailto: hands the address to the
                        OS default mail handler, which silently does nothing on machines with no desktop
                        mail client registered (and target="_blank" left a stray blank tab behind). -->
-                  <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=jiqubal@gmail.com" title="Email" target="_blank" rel="noopener"><i class="bi bi-envelope-fill"></i></a>
+                  <a class="js-email" data-e="amlxdWJhbEBnbWFpbC5jb20=" data-e-gmail title="Email" target="_blank" rel="noopener"><i class="bi bi-envelope-fill"></i></a>
                 </div>
               </div>
             </div>
@@ -125,8 +126,8 @@
               <h4>Contact and Support</h4>
               <p>
                 <i class="bi bi-envelope"></i>
-                <button type="button" class="copy-email" data-copy="jiqubal@gmail.com"
-                        data-tip="Copy email address" aria-label="Copy email address">jiqubal@gmail.com</button>
+                <button type="button" class="copy-email js-email" data-e="amlxdWJhbEBnbWFpbC5jb20=" data-e-text data-e-copy
+                        data-tip="Copy email address" aria-label="Copy email address">Email us</button>
               </p>
               <p>
                 <i class="bi bi-geo-alt"></i>
@@ -315,6 +316,24 @@
     }
     window.addEventListener('scroll', toggleScrollTop);
     toggleScrollTop();
+
+    // ---- Email address assembly ----
+    // The address is never present in the served HTML. It is base64-encoded in
+    // data-e and assembled at runtime, so regex-based address harvesters that
+    // scrape raw markup (the overwhelming majority) find nothing to collect.
+    //   data-e-text   -> write the address as the element's visible text
+    //   data-e-copy   -> expose it to the copy-to-clipboard handler
+    //   data-e-gmail  -> build a Gmail compose href
+    document.querySelectorAll('.js-email[data-e]').forEach(function (el) {
+      var addr;
+      try { addr = atob(el.dataset.e); } catch (err) { return; }
+      if (!addr) return;
+      if (el.hasAttribute('data-e-text')) el.textContent = addr;
+      if (el.hasAttribute('data-e-copy')) el.dataset.copy = addr;
+      if (el.hasAttribute('data-e-gmail')) {
+        el.href = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(addr);
+      }
+    });
 
     // ---- Contact email: click to copy ----
     // navigator.clipboard is unavailable on insecure origins (plain http) and in

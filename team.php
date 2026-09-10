@@ -194,8 +194,8 @@ include 'header.php';
                             </p>
                             <p>
                                 <strong>Email:</strong>
-                                <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=jiqubal@gmail.com"
-                                   title="Compose in Gmail" target="_blank" rel="noopener">jiqubal@gmail.com</a>
+                                <a class="js-email" data-e="amlxdWJhbEBnbWFpbC5jb20=" data-e-text data-e-gmail
+                                   title="Compose in Gmail" target="_blank" rel="noopener">Email us</a>
                             </p>
                         </div>
                     </div>
@@ -215,8 +215,8 @@ include 'header.php';
                             </p>
                             <p>
                                 <strong>Email:</strong>
-                                <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=jiqubal@gmail.com"
-                                   title="Compose in Gmail" target="_blank" rel="noopener">jiqubal@gmail.com</a>
+                                <a class="js-email" data-e="amlxdWJhbEBnbWFpbC5jb20=" data-e-text data-e-gmail
+                                   title="Compose in Gmail" target="_blank" rel="noopener">Email us</a>
                             </p>
                         </div>
                     </div>

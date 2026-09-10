@@ -53,7 +53,3 @@ If you use this tool in published work, please cite:
 
 Copyright (c) 2026 ICAR-IARI, New Delhi and ICAR-IASRI, New Delhi.
 Academic and non-commercial research use — see [`LICENSE`](LICENSE).
-
-## Contact
-
-For technical queries and collaborations: **jiqubal@gmail.com**

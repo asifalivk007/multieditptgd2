@@ -14,6 +14,7 @@ return [
     'username'   => 'CHANGE_ME',
     'password'   => 'CHANGE_ME',
     'website_id' => 'CHANGE_ME',
-    // Optional — defaults to https://asifalivk7analytics.duckdns.org
-    // 'umami_url' => 'https://your-umami-host.example',
+    // Optional — the Umami server to query. Defaults to the production host
+    // configured in globe-data.php if omitted.
+    // 'umami_url' => 'https://analytics.example.org',
 ];
