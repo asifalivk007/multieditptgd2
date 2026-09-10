@@ -207,9 +207,9 @@
                         <strong></strong> ${d.label}<strong>:</strong> ${d.weight}
                       </div>
                     `)
-                    .onGlobeClick(() => window.open('https://asifalivk7analytics.duckdns.org/share/x2dNpydLzTqQpfVu', '_blank'))
-                    .onPolygonClick(() => window.open('https://asifalivk7analytics.duckdns.org/share/x2dNpydLzTqQpfVu', '_blank'))
-                    .onLabelClick(() => window.open('https://asifalivk7analytics.duckdns.org/share/x2dNpydLzTqQpfVu', '_blank'))
+                    .onGlobeClick(() => window.open('https://website-analytics.abrl.in/share/ghT01ZLNHpMNu2dt', '_blank'))
+                    .onPolygonClick(() => window.open('https://website-analytics.abrl.in/share/ghT01ZLNHpMNu2dt', '_blank'))
+                    .onLabelClick(() => window.open('https://website-analytics.abrl.in/share/ghT01ZLNHpMNu2dt', '_blank'))
                     .onLabelHover(label => {
                       if (label) {
                         worldGlobe.controls().autoRotateSpeed = 0; // Instantly freeze when hovered
