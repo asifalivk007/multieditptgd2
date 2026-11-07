@@ -14,7 +14,7 @@ $extra_scripts = '
     });
   </script>
   <script src="assets/js/ptg-designer.js?v=5.11"></script>
-  <script src="assets/js/ptg-export.js?v=5.3"></script>
+  <script src="assets/js/ptg-export.js?v=5.4"></script>
   <script src="assets/js/ptg-app.js?v=5.0"></script>
 ';
 
@@ -162,11 +162,11 @@ include 'header.php';
                         <!-- Custom Overhang Inputs (Hidden by Default) -->
                         <div id="customOverhangContainer" class="row g-3 mb-3" style="display: none;">
                             <div class="col-md-6">
-                                <label for="customF1Overhang" class="form-label">Forward Overhang:</label>
+                                <label for="customF1Overhang" class="form-label">Top Strand Overhang (5'→3'):</label>
                                 <input type="text" id="customF1Overhang" class="form-control" maxlength="4" placeholder="NNNN" style="font-family: monospace; background: #e2e8f0;">
                             </div>
                             <div class="col-md-6">
-                                <label for="customRFinalOverhang" class="form-label">Reverse Overhang:</label>
+                                <label for="customRFinalOverhang" class="form-label">Bottom Strand Overhang (5'→3'):</label>
                                 <input type="text" id="customRFinalOverhang" class="form-control" maxlength="4" placeholder="NNNN" style="font-family: monospace; background: #e2e8f0;">
                             </div>
                         </div>

@@ -77,7 +77,7 @@ function exportToExcel(button) {
             ['Generated: ' + new Date().toLocaleString()],
             [''],
             ['Configuration', (resultsData.spacerCount || 0) + 'x Spacers'],
-            ['Cas9 Vector Overhangs', `${resultsData.config?.overhangType || 'Default'} (F1: ${resultsData.config?.overhangF1 || 'ATTG'}, R_final: ${resultsData.config?.overhangR || 'AAAC'})`],
+            ['Cas9 Vector Overhangs', `${resultsData.config?.overhangType || 'Default'} (Top strand: ${resultsData.config?.overhangF1 || 'ATTG'}, Bottom strand: ${resultsData.config?.overhangR || 'AAAC'})`],
             ['Input Spacers', (resultsData.spacers || []).join(', ')],
             [''],
             ['Total Sequences Exported', sequenceData.length - 1],
@@ -127,7 +127,7 @@ function exportToExcel(button) {
         const finalData = [
             ['Property', 'Value'],
             ['Configuration', (resultsData.spacerCount || 0) + 'x Spacers'],
-            ['Cas9 Vector Overhangs', `${resultsData.config?.overhangType || 'Default'} (F1: ${resultsData.config?.overhangF1 || 'ATTG'}, R_final: ${resultsData.config?.overhangR || 'AAAC'})`],
+            ['Cas9 Vector Overhangs', `${resultsData.config?.overhangType || 'Default'} (Top strand: ${resultsData.config?.overhangF1 || 'ATTG'}, Bottom strand: ${resultsData.config?.overhangR || 'AAAC'})`],
             ['Input Spacers', (resultsData.spacers || []).join(', ')],
             ['Assembly Name', details.finalAssemblyName || ''],
             ['Total Length (bp)', String(details.totalLength || 0)],

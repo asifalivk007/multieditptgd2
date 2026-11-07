@@ -6,7 +6,7 @@ $page_robots = "noindex, follow";
 $extra_scripts = '
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="assets/js/ptg-designer.js?v=5.11"></script>
-<script src="assets/js/ptg-export.js?v=5.3"></script>
+<script src="assets/js/ptg-export.js?v=5.4"></script>
 <script src="assets/js/ptg-app.js?v=5.0"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
