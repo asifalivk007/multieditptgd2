@@ -143,9 +143,11 @@
           <!-- Col 5: Visitor Globe -->
           <div class="col-lg-2 col-md-6 d-flex align-items-center justify-content-center flex-column p-0">
             <div class="footer-map-section w-100 p-0">
-              <!-- Load 3D Engine Dependencies with explicit versions and UMD paths -->
-              <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-              <script src="https://unpkg.com/globe.gl@2.32.2/dist/globe.gl.min.js"></script>
+              <!-- The 3D engine is loaded lazily (see the script below) rather than with
+                   parser-blocking <script src> tags. Those two unpkg requests used to sit on
+                   the critical path, so everything after them in the document -- including the
+                   tool's own ptg-designer.js -- could not execute until they finished, leaving
+                   the enzyme dropdowns visibly empty on a slow connection. -->
 
               <!-- The visual placeholder frame for the footer -->
               <div id="trafficGlobe" style="width: 100%; height: 180px; border-radius: 8px; overflow: hidden; background: transparent; margin: 0 auto; display: flex; justify-content: center; align-items: center; text-align: center;"></div>
@@ -155,8 +157,34 @@
               <script>
                 // Ensure absolute path from the current directory
                 const dataUrl = '<?php echo rtrim(dirname($_SERVER["SCRIPT_NAME"]), "/\\"); ?>/globe-data.php';
-                
-                Promise.all([
+
+                // Load a script on demand, preserving execution order via chaining.
+                function ptgLoadScript(src) {
+                  return new Promise(function (resolve, reject) {
+                    const el = document.createElement('script');
+                    el.src = src;
+                    el.async = false;
+                    el.onload = resolve;
+                    el.onerror = function () { reject(new Error('Failed to load ' + src)); };
+                    document.head.appendChild(el);
+                  });
+                }
+
+                // Deferred to window.load: the visitor globe is decorative, so it must never
+                // delay the tool itself. three.js must finish before globe.gl, hence the chain.
+                window.addEventListener('load', function () {
+                  ptgLoadScript('https://unpkg.com/three@0.160.0/build/three.min.js')
+                    .then(function () { return ptgLoadScript('https://unpkg.com/globe.gl@2.32.2/dist/globe.gl.min.js'); })
+                    .then(initTrafficGlobe)
+                    .catch(function (err) {
+                      console.error('Globe Error:', err);
+                      const c = document.getElementById('trafficGlobe');
+                      if (c) c.innerHTML = '<p style="color:#ff6b6b; font-size: 11px; word-break: break-all;">Error: ' + err.message + '</p>';
+                    });
+                });
+
+                function initTrafficGlobe() {
+                return Promise.all([
                   fetch(dataUrl).then(async res => {
                     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
                     return res.json();
@@ -247,6 +275,7 @@
                   console.error('Globe Error:', err);
                   document.getElementById('trafficGlobe').innerHTML = `<p style="color:#ff6b6b; font-size: 11px; word-break: break-all;">Error: ${err.message}</p>`;
                 });
+                }
               </script>
             </div>
           </div>

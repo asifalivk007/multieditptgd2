@@ -3,7 +3,7 @@
 $active_page = "tool";
 
 $extra_scripts = '
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {
         const spacerInputs = document.querySelectorAll(".spacer-input");
@@ -13,9 +13,9 @@ $extra_scripts = '
         });
     });
   </script>
-  <script src="assets/js/ptg-designer.js?v=5.11"></script>
-  <script src="assets/js/ptg-export.js?v=5.4"></script>
-  <script src="assets/js/ptg-app.js?v=5.0"></script>
+  <script defer src="assets/js/ptg-designer.js?v=5.13"></script>
+  <script defer src="assets/js/ptg-export.js?v=5.5"></script>
+  <script defer src="assets/js/ptg-app.js?v=5.0"></script>
 ';
 
 include 'header.php';

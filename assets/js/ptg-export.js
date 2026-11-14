@@ -120,7 +120,7 @@ function exportToExcel(button) {
             assemblyData.push([`4. ${ggName} Digest`, label, 'Digest', module.digest.name || '', String(module.digest.sequence || ''), String(module.digest.length || 0)]);
             assemblyData.push(['', '', '', '', '', '']);
         });
-        if (finalSeq) assemblyData.push(['5. Final Assembly', 'ALL MODULES', 'Complete', details.finalAssemblyName || '', String(finalSeq), String(details.totalLength || 0)]);
+        if (finalSeq) assemblyData.push(['5. Final Assembly', 'ALL MODULES', 'Complete', details.finalAssemblyName || 'Final PTG Assembly', String(finalSeq), String(details.totalLength || 0)]);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(assemblyData), 'Complete Workflow');
 
         // Final Assembly
@@ -129,7 +129,7 @@ function exportToExcel(button) {
             ['Configuration', (resultsData.spacerCount || 0) + 'x Spacers'],
             ['Cas9 Vector Overhangs', `${resultsData.config?.overhangType || 'Default'} (Top strand: ${resultsData.config?.overhangF1 || 'ATTG'}, Bottom strand: ${resultsData.config?.overhangR || 'AAAC'})`],
             ['Input Spacers', (resultsData.spacers || []).join(', ')],
-            ['Assembly Name', details.finalAssemblyName || ''],
+            ['Assembly Name', details.finalAssemblyName || 'Final PTG Assembly'],
             ['Total Length (bp)', String(details.totalLength || 0)],
             ['Expected Length (bp)', String(details.expectedLength || 0)],
             ['Length Match', details.totalLength === details.expectedLength ? 'YES ✓' : 'NO ⚠️'],

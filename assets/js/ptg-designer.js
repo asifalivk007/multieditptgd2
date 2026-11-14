@@ -358,6 +358,7 @@ class PTGDesigner {
         
         // Assign unique colors to each spacer for tracking throughout the workflow
         this.spacerColors = this.assignSpacerColors(spacers);
+        this._spacerFragments = null;
         
         const numSpacers = spacers.length;
         const totalModules = numSpacers + 1;
@@ -483,7 +484,7 @@ class PTGDesigner {
             digestCount: bsaIDigests.length,
             enzymesUsed: [`${ggId} (digestion)`, `${termId}`, 'T4 DNA Ligase (ligation)'],
             goldenGateProcess: `${ggId} digestion followed by T4 ligation`,
-            finalAssemblyName: 'Digested GG Assembly',
+            finalAssemblyName: 'Final PTG Assembly',
             allPrimers: primers,
             allPCRs: pcrProducts,
             allDigests: bsaIDigests
@@ -517,16 +518,18 @@ class PTGDesigner {
         spacers.forEach((spacer, index) => {
             const colorIndex = index % availableColors.length;
             spacerColors[spacer] = availableColors[colorIndex];
-            console.log(`🎨 Assigned color ${availableColors[colorIndex]} to spacer ${index + 1}: ${spacer}`);
         });
         
         return spacerColors;
     }
 
-    // Get spacer fragments and their colors for tracking
+    // Get spacer fragments and their colors for tracking. Cached: this is called once per
+    // rendered card (21x for a 4-spacer design), and the map only changes when the spacers do.
     getSpacerFragments() {
+        if (this._spacerFragments) return this._spacerFragments;
+
         const fragments = {};
-        
+
         if (!this.currentSpacers || !this.spacerColors) return fragments;
         
         this.currentSpacers.forEach(spacer => {
@@ -549,65 +552,13 @@ class PTGDesigner {
             fragments[s_gRNA_8] = color; // First 8bp (digest tail remnant)
             fragments[e_gRNA] = color; // End fragment
             fragments[s_gRNA_rc] = color; // Reverse complement of start fragment
-            
-            console.log(`🧬 Spacer ${spacer} fragments:`, {
-                full: spacer,
-                s_gRNA: s_gRNA,
-                e_gRNA: e_gRNA,
-                s_gRNA_rc: s_gRNA_rc,
-                color: color
-            });
         });
 
+        this._spacerFragments = fragments;
         return fragments;
     }
 
-    // Single source of truth for spacer coloring — used by the final assembly, the per-module
-    // digests AND the primer/PCR views so a given spacer always renders in the same palette
-    // colour everywhere. Fragments are applied longest-first so a full 20 bp spacer is wrapped
-    // before its 12 bp sub-fragments; each fragment carries its parent spacer's colour.
-    applySpacerColoring(sequence) {
-        if (!sequence) return sequence;
-        const fragments = this.getSpacerFragments();
-        // Longest-first so a full 20 bp spacer wins over its 12 bp sub-fragments at the same spot.
-        const keys = Object.keys(fragments).filter(Boolean).sort((a, b) => b.length - a.length);
-        if (keys.length === 0) return sequence;
 
-        // Single left-to-right scan: at each position emit the longest matching fragment as one
-        // span (no nesting / no overlap), otherwise pass the base through unchanged.
-        let out = '';
-        let i = 0;
-        while (i < sequence.length) {
-            let matched = null;
-            for (const frag of keys) {
-                if (sequence.startsWith(frag, i)) { matched = frag; break; }
-            }
-            if (matched) {
-                out += `<span class="spacer-tracked" style="color: ${fragments[matched]}; font-weight: bold;">${matched}</span>`;
-                i += matched.length;
-            } else {
-                if (sequence.substring(i, i+4) === 'NNNN') {
-                    out += `<span style="color: #00E5FF; font-weight: bold;">NNNN</span>`;
-                    i += 4;
-                } else {
-                    out += sequence[i];
-                    i++;
-                }
-            }
-        }
-        return out;
-    }
-
-    // Colour the poly-A tail and its poly-T complement with the same text-only purple notation.
-    colorPolyTail(sequence) {
-        if (!sequence) return sequence;
-        const style = "color: #f15bb5; font-weight: bold; font-family: 'Fira Code', monospace;";
-        let out = sequence;
-        ['AAAAAAAAAA', 'TTTTTTTTTT'].forEach(run => {
-            out = out.replace(new RegExp(run, 'g'), m => `<span style="${style}">${m}</span>`);
-        });
-        return out;
-    }
 
     // ... UI methods remain the same as previous version
     initializeEventListeners() {
@@ -866,113 +817,224 @@ class PTGDesigner {
         window.location.href = 'results.php';
     }
 
-    // Color code PTG sequences based on biological function and assembly structure
-    colorCodeSequence(sequence, sequenceType = 'final_assembly', modNum = 0, totalMods = 0, seqType = '') {
-        if (!sequence) return '';
-        
-        // For final assembly, we need to color based on the structure of concatenated BsaI digests
-        if (sequenceType === 'final_assembly') {
-            return this.colorCodeFinalAssembly(sequence);
-        }
-        
-        // For BsaI digest sequences, use enhanced highlighting to ensure enzyme sites are visible
-        if (sequenceType === 'digest') {
-            return this.colorCodeDigestSequence(sequence, modNum, totalMods);
-        }
-        
-        // For individual components, use the standard pattern matching
-        return this.colorCodeStandardSequence(sequence, modNum, totalMods, seqType);
-    }
+    // ---- Sequence colour coding -------------------------------------------------------------
+    // Role attribution is POSITIONAL, not motif-based. Primers are built deterministically, so the
+    // offset of every designed recognition site is exactly computable; the motif is used only to
+    // validate. That is what lets the same enzyme serve as both the terminal and the Golden Gate
+    // enzyme and still be coloured correctly in each role.
+    //
+    // `view` is one of: 'forward' | 'reverse' | 'pcr' | 'digest' | 'final'.
 
-    // Every recognition site occurrence in the RAW assembly, classified as terminal (expected at
-    // the 5'/3' ends) or internal (an error — should be absent after digestion). Shared by the
-    // status banner, the alert list AND the sequence flagging so all three always agree.
-    enzymeSites(sequence) {
-        if (!sequence) return [];
+    // Resolve both enzyme roles (and their four motifs) once, with safe fallbacks.
+    enzymeRoles() {
         const gg = this.selectedGGEnzyme || this.ENZYMES['BsaI'];
         const term = this.selectedTermEnzyme || this.ENZYMES['FokI'];
-        const ggName = this.selectedGGEnzymeName || 'BsaI';
-        const termName = this.selectedTermEnzymeName || 'FokI';
+        return {
+            gg, term,
+            ggName: this.selectedGGEnzymeName || 'BsaI',
+            termName: this.selectedTermEnzymeName || 'FokI',
+            ggF: gg.recognition, ggR: this.reverseComplement(gg.recognition),
+            tF: term.recognition, tR: this.reverseComplement(term.recognition),
+            sharedMotif: gg.recognition === term.recognition
+        };
+    }
 
-        const findAll = (motif) => {
-            const idx = [];
-            if (!motif) return idx;
-            let p = sequence.indexOf(motif);
-            while (p !== -1) { idx.push(p); p = sequence.indexOf(motif, p + 1); }
-            return idx;
+    findAllOccurrences(sequence, motif) {
+        const idx = [];
+        if (!sequence || !motif) return idx;
+        let p = sequence.indexOf(motif);
+        while (p !== -1) { idx.push(p); p = sequence.indexOf(motif, p + 1); }
+        return idx;
+    }
+
+    // The 5'/3' anchor offsets shared by the terminal recognition site and the vector overhang.
+    // filler1 is always 2 nt ("CG"/"AT"/"TA"/"AC"), hence the literal 2.
+    terminalEndOffsets(n) {
+        const { term } = this.enzymeRoles();
+        const tL = term.recognition.length;
+        const fwdSiteStart = 2;
+        const revSiteStart = n - 2 - tL;
+        return {
+            tL,
+            fwdSiteStart,
+            fwdOverhangStart: fwdSiteStart + tL + term.bufferTEFw.length,
+            revSiteStart,
+            revOverhangStart: revSiteStart - term.bufferTERv.length - 4,
+            // The final module's reverse PRIMER carries the overhang on its own strand.
+            revPrimerOverhangStart: 2 + tL + term.bufferTERv.length
+        };
+    }
+
+    // Geometry table: which role is played at which offset, per view. Pure arithmetic — no scanning.
+    expectedEnzymeSites(view, modNum, totalMods, n) {
+        const { gg, term } = this.enzymeRoles();
+        const tL = term.recognition.length, gL = gg.recognition.length;
+        const o = this.terminalEndOffsets(n);
+        const E = [];
+        const T = (start, orientation) => E.push({ start, len: tL, role: 'term', orientation });
+        const G = (start, orientation) => E.push({ start, len: gL, role: 'gg', orientation });
+
+        if (view === 'forward') {
+            modNum === 1 ? T(2, 'fwd') : G(2, 'fwd');
+        } else if (view === 'reverse') {
+            // Written 5'->3' on the primer's own strand, so the motif appears literally (fwd).
+            modNum === totalMods ? T(2, 'fwd') : G(2, 'fwd');
+        } else if (view === 'pcr') {
+            modNum === 1 ? T(2, 'fwd') : G(2, 'fwd');
+            modNum === totalMods ? T(o.revSiteStart, 'rev') : G(n - 2 - gL, 'rev');
+        } else if (view === 'digest') {
+            // Two independent ifs so a single-module design keeps both ends.
+            // Internal modules have both recognition sites trimmed off by generateGGDigest().
+            if (modNum === 1) T(2, 'fwd');
+            if (modNum === totalMods) T(o.revSiteStart, 'rev');
+        } else if (view === 'final') {
+            T(2, 'fwd');
+            T(o.revSiteStart, 'rev');
+        }
+        return E;
+    }
+
+    motifFor(entry) {
+        const r = this.enzymeRoles();
+        if (entry.role === 'term') return entry.orientation === 'fwd' ? r.tF : r.tR;
+        return entry.orientation === 'fwd' ? r.ggF : r.ggR;
+    }
+
+    // Accept a geometry entry only if the predicted motif is really there. Costs nothing and
+    // degrades safely: if an offset ever shifts (over-long custom overhang, or generateGGDigest's
+    // indexOf fallbacks firing) the entry is dropped and the occurrence is reported as unexpected
+    // rather than silently mis-coloured.
+    acceptedEnzymeSites(sequence, view, modNum, totalMods) {
+        const n = sequence.length;
+        return this.expectedEnzymeSites(view, modNum, totalMods, n).filter(e => {
+            const motif = this.motifFor(e);
+            const ok = e.start >= 0 && e.start + e.len <= n && sequence.substr(e.start, e.len) === motif;
+            if (!ok) console.warn(`PTG: expected ${e.role} site not found at ${e.start} in ${view} (module ${modNum})`);
+            return ok;
+        });
+    }
+
+    // Every recognition-site occurrence, split into DESIGNED (expected position -> role colour) and
+    // STRAY (anything else -> red internal-site box, no role colour).
+    //
+    // Which enzyme is checked for strays depends on the stage the view represents, because only one
+    // enzyme is ever applied at a time:
+    //   module views -> Golden Gate enzyme  (the only one in the tube during assembly)
+    //   final        -> terminal enzyme     (GG sites are spent; this one cuts for vector cloning)
+    // Nothing is missed: a stray terminal site inside a module carries through into the assembly,
+    // where the terminal check catches it.
+    enzymeSites(sequence, view = 'final', modNum = 0, totalMods = 0) {
+        if (!sequence) return [];
+        const r = this.enzymeRoles();
+        const accepted = this.acceptedEnzymeSites(sequence, view, modNum, totalMods);
+
+        const label = (role, orientation) => {
+            const rev = orientation === 'rev' ? ' (rev)' : '';
+            if (r.sharedMotif) return `Terminal Enzyme / Golden Gate Enzyme: ${r.termName}${rev}`;
+            return role === 'term'
+                ? `Terminal Enzyme: ${r.termName}${rev}`
+                : `Golden Gate Enzyme: ${r.ggName}${rev}`;
         };
 
-        const sites = [];
+        const sites = accepted.map(e => ({
+            start: e.start, len: e.len, role: e.role, orientation: e.orientation,
+            expected: true, internal: false,
+            className: e.role === 'term' ? 'seq-term-site' : 'seq-gg-site',
+            type: label(e.role, e.orientation), motif: this.motifFor(e)
+        }));
 
-        // Golden Gate enzyme — any occurrence (either orientation) is internal.
-        const ggF = gg.recognition, ggR = this.reverseComplement(gg.recognition);
-        findAll(ggF).forEach(p => sites.push({ start: p, len: ggF.length, internal: true, className: 'seq-bsaI', type: 'Golden Gate Enzyme: ' + ggName, motif: ggF }));
-        if (ggR !== ggF) findAll(ggR).forEach(p => sites.push({ start: p, len: ggR.length, internal: true, className: 'seq-bsaI', type: 'Golden Gate Enzyme: ' + ggName + ' (rev)', motif: ggR }));
+        // Stray scan, scoped to the stage's enzyme. Dedup by motif string so a shared recognition
+        // (gg === term, Esp3I/BsmBI, BspMI/BfuAI) is not scanned twice.
+        const stageRole = view === 'final' ? 'term' : 'gg';
+        const stageMotifs = stageRole === 'term'
+            ? [...new Set([r.tF, r.tR])]
+            : [...new Set([r.ggF, r.ggR])];
 
-        // Terminal enzyme — the first 5' forward site and the last 3' reverse site are expected;
-        // anything else is a true internal site.
-        const tF = term.recognition, tR = this.reverseComplement(term.recognition);
-        if (tF === tR) {
-            const occ = findAll(tF);
-            occ.forEach((p, i) => sites.push({ start: p, len: tF.length, internal: !(i === 0 || i === occ.length - 1), className: 'seq-fokI', type: 'Terminal Enzyme: ' + termName, motif: tF }));
-        } else {
-            const occF = findAll(tF), occR = findAll(tR);
-            occF.forEach((p, i) => sites.push({ start: p, len: tF.length, internal: i !== 0, className: 'seq-fokI', type: 'Terminal Enzyme: ' + termName, motif: tF }));
-            occR.forEach((p, i) => sites.push({ start: p, len: tR.length, internal: i !== occR.length - 1, className: 'seq-fokI', type: 'Terminal Enzyme: ' + termName + ' (rev)', motif: tR }));
-        }
+        const seen = new Set(sites.map(s => `${s.start}:${s.len}`));
+        stageMotifs.forEach(motif => {
+            const orientation = (stageRole === 'term' ? motif === r.tF : motif === r.ggF) ? 'fwd' : 'rev';
+            this.findAllOccurrences(sequence, motif).forEach(p => {
+                // Absorbed if it lies wholly inside a designed site (identical, or a shorter motif
+                // nested in a longer one at the same anchor).
+                if (accepted.some(e => p >= e.start && p + motif.length <= e.start + e.len)) return;
+                const key = `${p}:${motif.length}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                sites.push({
+                    start: p, len: motif.length, role: stageRole, orientation,
+                    expected: false, internal: true,
+                    className: stageRole === 'term' ? 'seq-term-site' : 'seq-gg-site',
+                    type: label(stageRole, orientation), motif
+                });
+            });
+        });
 
         return sites.sort((a, b) => a.start - b.start);
     }
 
-    // Position-aware colouring for the final assembly. Every feature is resolved per-nucleotide on
-    // the RAW sequence (highest priority wins), then contiguous runs are emitted as spans. This makes
-    // internal-recognition-site flagging robust even when a site straddles a colouring boundary
-    // (e.g. a spacer/scaffold junction), which the old regex-on-coloured-HTML approach could not.
-    colorCodeFinalAssembly(sequence) {
-        if (!sequence) return '';
+    // Per-nucleotide feature annotation with explicit priority. Strictly-greater means the FIRST
+    // writer wins at equal priority, which preserves longest-first behaviour inside the spacer
+    // layer (a 20 bp spacer beats its own 12/8 bp sub-fragments) with no extra bookkeeping.
+    sequenceLayers(sequence, view, modNum, totalMods) {
         const n = sequence.length;
-        const tRNA_core = "AACAAAGCACCAGTGGTCTAGTGGTAGAATAGTACCCTGCCACGGTACAGACCCGGGTTCGATTCCCGGCTGGTGCA";
-        const gRNA_core = this.sequences.gRNA_core;
-
         const annot = new Array(n).fill(null);
-        const mark = (start, len, val) => { for (let k = start; k < start + len && k < n; k++) annot[k] = val; };
-        const findAll = (motif) => {
-            const idx = [];
-            if (!motif) return idx;
-            let p = sequence.indexOf(motif);
-            while (p !== -1) { idx.push(p); p = sequence.indexOf(motif, p + 1); }
-            return idx;
+        const PRIORITY = { poly: 1, trna: 2, grna: 3, spacer: 4, enzyme: 5, overhang: 6 };
+        const mark = (start, len, val) => {
+            const prio = PRIORITY[val.kind];
+            for (let k = start; k < start + len && k < n; k++) {
+                if (k < 0) continue;
+                if (prio > (annot[k] ? PRIORITY[annot[k].kind] : 0)) annot[k] = val;
+            }
         };
+        const each = (motif, val) => this.findAllOccurrences(sequence, motif)
+            .forEach(p => mark(p, motif.length, val));
 
-        // Base colour layer (lowest → highest priority). Internal sites are intentionally NOT filled
-        // here — they keep whatever the underlying element is (spacer / scaffold / tRNA / poly), so
-        // every element stays clearly visible. Only the two expected terminal sites get an enzyme fill.
-        ['AAAAAAAAAA', 'TTTTTTTTTT'].forEach(run => findAll(run).forEach(p => mark(p, run.length, { kind: 'poly' })));      // 1. poly-A/T tail
-        findAll(tRNA_core).forEach(p => mark(p, tRNA_core.length, { kind: 'trna' }));                                       // 2. tRNA
-        findAll(gRNA_core).forEach(p => mark(p, gRNA_core.length, { kind: 'grna' }));                                       // 3. gRNA scaffold
-        const frags = this.getSpacerFragments();                                                                            // 4. spacers (longest first)
+        // 1-3. structural elements
+        ['AAAAAAAAAA', 'TTTTTTTTTT'].forEach(run => each(run, { kind: 'poly' }));
+        [this.sequences.tRNA_core, this.sequences.tRNA_f1, this.sequences.tRNA_tail]
+            .forEach(m => each(m, { kind: 'trna' }));
+        [this.sequences.gRNA_core, this.sequences.scaffold]
+            .forEach(m => each(m, { kind: 'grna' }));
+
+        // 4. spacers, longest fragment first
+        const frags = this.getSpacerFragments();
         Object.keys(frags).filter(Boolean).sort((a, b) => b.length - a.length)
-            .forEach(frag => findAll(frag).forEach(p => mark(p, frag.length, { kind: 'spacer', color: frags[frag] })));
-        const es = this.enzymeSites(sequence);
-        es.filter(s => !s.internal).forEach(s => mark(s.start, s.len, { kind: 'enzyme', className: s.className }));         // 5. terminal enzyme sites
-        
-        // 6. Vector Overhangs (exact indices to avoid false positives)
-        const term = this.selectedTermEnzyme || this.ENZYMES["FokI"];
-        mark(2 + term.recognition.length + term.bufferTEFw.length, 4, { kind: 'overhang' });
-        mark(n - (4 + term.bufferTERv.length + term.recognition.length + 2), 4, { kind: 'overhang' });
+            .forEach(f => each(f, { kind: 'spacer', color: frags[f] }));
 
-        // Internal-site overlay: a box outline drawn in RED,
-        // laid over (not replacing) the base colouring. Merge overlapping sites into one box.
-        const ivOf = new Array(n).fill(-1);
+        // 5. designed recognition sites only — strays are boxed, not filled, so the element
+        //    underneath them stays visible.
+        const es = this.enzymeSites(sequence, view, modNum, totalMods);
+        es.filter(s => s.expected).forEach(s => mark(s.start, s.len, { kind: 'enzyme', className: s.className }));
+
+        // 6. Cas9 vector overhangs, at exact offsets to avoid false positives
+        const o = this.terminalEndOffsets(n);
+        const atFwd = () => mark(o.fwdOverhangStart, 4, { kind: 'overhang' });
+        const atRev = () => mark(o.revOverhangStart, 4, { kind: 'overhang' });
+        if (view === 'final') { atFwd(); atRev(); }
+        else if (view === 'digest') { if (modNum === 1) atFwd(); if (modNum === totalMods) atRev(); }
+        else if (view === 'forward') { if (modNum === 1) atFwd(); }
+        else if (view === 'pcr') { if (modNum === 1) atFwd(); if (modNum === totalMods) atRev(); }
+        else if (view === 'reverse') {
+            if (modNum === totalMods) mark(o.revPrimerOverhangStart, 4, { kind: 'overhang' });
+        }
+
+        // Stray sites become merged red-outline boxes laid OVER the base colouring.
         const boxes = [];
-        es.filter(s => s.internal)
-            .sort((a, b) => a.start - b.start)
-            .forEach(s => {
-                const last = boxes[boxes.length - 1];
-                if (last && s.start <= last.end) { last.end = Math.max(last.end, s.start + s.len); }
-                else { boxes.push({ start: s.start, end: s.start + s.len, color: '#ef4444' }); }
-            });
-        boxes.forEach((b, idx) => { for (let k = b.start; k < b.end && k < n; k++) ivOf[k] = idx; });
+        es.filter(s => s.internal).sort((a, b) => a.start - b.start).forEach(s => {
+            const last = boxes[boxes.length - 1];
+            if (last && s.start <= last.end) last.end = Math.max(last.end, s.start + s.len);
+            else boxes.push({ start: s.start, end: s.start + s.len, type: s.type, motif: s.motif });
+        });
+
+        return { annot, boxes, sites: es };
+    }
+
+    // The one span emitter. Runs are merged STRUCTURALLY (not by object identity), so adjacent
+    // nucleotides of the same feature collapse into a single span.
+    renderAnnotations(sequence, annot, boxes) {
+        const n = sequence.length;
+        const ivOf = new Array(n).fill(-1);
+        boxes.forEach((b, idx) => { for (let k = Math.max(0, b.start); k < b.end && k < n; k++) ivOf[k] = idx; });
 
         const same = (a, b) => {
             if (a === b) return true;
@@ -985,7 +1047,7 @@ class PTGDesigner {
                 case 'poly': return `<span class="seq-polyA">${text}</span>`;
                 case 'trna': return `<span class="seq-tRNA">${text}</span>`;
                 case 'grna': return `<span class="seq-gRNA-scaffold">${text}</span>`;
-                case 'spacer': return `<span class="spacer-tracked" style="color: ${a.color}; font-weight: bold;">${text}</span>`;
+                case 'spacer': return `<span class="spacer-tracked" style="color: ${a.color};">${text}</span>`;
                 case 'enzyme': return `<span class="${a.className}">${text}</span>`;
                 case 'overhang': return `<span class="seq-overhang">${text}</span>`;
                 default: return text;
@@ -998,7 +1060,10 @@ class PTGDesigner {
             if (box !== curBox) {
                 if (curBox !== -1) out += '</span>';
                 curBox = box;
-                if (box !== -1) out += `<span class="seq-internal-site" title="Internal Recognition Site!" style="border-color: ${boxes[box].color};">`;
+                if (box !== -1) {
+                    const b = boxes[box];
+                    out += `<span class="seq-internal-site" title="Internal ${b.motif} site (${b.type}) at ${b.start + 1}">`;
+                }
             }
             let j = i + 1;
             while (j < n && same(annot[j], annot[i]) && ivOf[j] === box) j++;
@@ -1009,166 +1074,42 @@ class PTGDesigner {
         return out;
     }
 
-    // Highlight enzyme recognition sites in the per-module views (primers / PCR / digests). This is a
-    // plain highlighter — it wraps each occurrence in the enzyme's colour class. Internal-site
-    // flagging is a final-assembly concept only and is handled by colorCodeFinalAssembly(), so no
-    // seq-internal-site is applied here (the extra terminal args are kept for call-site compatibility).
-    highlightEnzymeSites(sequence, enzymePattern, className) {
-        if (!sequence || !enzymePattern) return sequence;
-
-        // Process text content only, leaving existing HTML tags untouched.
-        return sequence.split(/(<[^>]*>)/).map(part => {
-            if (!part || part.startsWith('<')) return part;
-            const re = new RegExp(enzymePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-            return part.replace(re, m => `<span class="${className}">${m}</span>`);
-        }).join('');
-    }
-
-    // Enhanced function to highlight both FokI orientations (GGATG and CATCC)
-    highlightFokISites(sequence) {
-        if (!sequence) return sequence;
-        const recog = (this.selectedTermEnzyme || this.ENZYMES["FokI"]).recognition;
-        const recogRc = this.reverseComplement(recog);
-        
-        let highlightedSequence = sequence;
-        if (recog === recogRc) {
-            highlightedSequence = this.highlightEnzymeSites(sequence, recog, 'seq-fokI', true, true);
-        } else {
-            highlightedSequence = this.highlightEnzymeSites(sequence, recog, 'seq-fokI', true, false); // Forward
-            highlightedSequence = this.highlightEnzymeSites(highlightedSequence, recogRc, 'seq-fokI', false, true); // Reverse complement
-        }
-        
-        return highlightedSequence;
-    }
-
-    // Enhanced function to highlight both BsaI orientations (GGTCTC and GAGACC)
-    highlightBsaISites(sequence) {
-        if (!sequence) return sequence;
-        const recog = (this.selectedGGEnzyme || this.ENZYMES["BsaI"]).recognition;
-        const recogRc = this.reverseComplement(recog);
-        
-        let highlightedSequence = this.highlightEnzymeSites(sequence, recog, 'seq-bsaI', false, false); // None are terminal
-        if (recog !== recogRc) {
-            highlightedSequence = this.highlightEnzymeSites(highlightedSequence, recogRc, 'seq-bsaI', false, false);
-        }
-        
-        return highlightedSequence;
-    }
-
-    // Coloring for Golden Gate digest sequences using robust array annotation
-    colorCodeDigestSequence(sequence, modNum, totalMods) {
+    // Single public entry point for every sequence rendered on the results page.
+    colorCodeSequence(sequence, sequenceType = 'final_assembly', modNum = 0, totalMods = 0, seqType = '') {
         if (!sequence) return '';
-        const n = sequence.length;
-        const annot = new Array(n).fill(null);
-        const mark = (start, len, val) => { for (let k = start; k < start + len && k < n; k++) { if (!annot[k]) annot[k] = val; } };
-        const findAll = (m) => { const idx = []; if (!m) return idx; let p=sequence.indexOf(m); while(p!==-1){ idx.push(p); p=sequence.indexOf(m, p+1); } return idx; };
-
-        // Mark exact positional features first so they are never overwritten
-        const term = this.selectedTermEnzyme || this.ENZYMES["FokI"];
-        if (modNum === 1) {
-            mark(2 + term.recognition.length + term.bufferTEFw.length, 4, { kind: 'overhang' });
-        }
-        if (modNum === totalMods) {
-            mark(n - (4 + term.bufferTERv.length + term.recognition.length + 2), 4, { kind: 'overhang' });
-        }
-
-        ['AAAAAAAAAA', 'TTTTTTTTTT'].forEach(run => findAll(run).forEach(p => mark(p, run.length, { kind: 'poly' })));
-        findAll(this.sequences.tRNA_core).forEach(p => mark(p, this.sequences.tRNA_core.length, { kind: 'trna' }));
-        findAll(this.sequences.gRNA_core).forEach(p => mark(p, this.sequences.gRNA_core.length, { kind: 'grna' }));
-        
-        const frags = this.getSpacerFragments();
-        Object.keys(frags).filter(Boolean).sort((a,b)=>b.length-a.length).forEach(f => findAll(f).forEach(p => mark(p, f.length, { kind:'spacer', color: frags[f] })));
-        
-        const es = this.enzymeSites(sequence);
-        es.filter(s => !s.internal).forEach(s => mark(s.start, s.len, { kind: 'enzyme', className: s.className }));
-
-        const wrap = (a, text) => {
-            if (!a) return text;
-            switch (a.kind) {
-                case 'poly': return `<span class="seq-polyA">${text}</span>`;
-                case 'trna': return `<span class="seq-tRNA">${text}</span>`;
-                case 'grna': return `<span class="seq-gRNA-scaffold">${text}</span>`;
-                case 'spacer': return `<span class="spacer-tracked" style="color: ${a.color}; font-weight: bold;">${text}</span>`;
-                case 'enzyme': return `<span class="${a.className}">${text}</span>`;
-                case 'overhang': return `<span class="seq-overhang">${text}</span>`;
-                default: return text;
-            }
-        };
-
-        let out = '', i = 0;
-        while (i < n) {
-            let j = i + 1;
-            while (j < n && annot[j] === annot[i]) j++;
-            out += wrap(annot[i], sequence.substring(i, j));
-            i = j;
-        }
-        return out;
+        const view = sequenceType === 'final_assembly' ? 'final'
+                   : sequenceType === 'digest' ? 'digest'
+                   : (seqType || 'pcr');
+        const { annot, boxes } = this.sequenceLayers(sequence, view, modNum, totalMods);
+        return this.renderAnnotations(sequence, annot, boxes);
     }
 
-    // Standard sequence coloring for primers / PCR components using robust array annotation
-    colorCodeStandardSequence(sequence, modNum, totalMods, seqType) {
-        if (!sequence) return '';
-        const n = sequence.length;
-        const annot = new Array(n).fill(null);
-        const mark = (start, len, val) => { for (let k = start; k < start + len && k < n; k++) { if (!annot[k]) annot[k] = val; } };
-        const findAll = (m) => { const idx = []; if (!m) return idx; let p=sequence.indexOf(m); while(p!==-1){ idx.push(p); p=sequence.indexOf(m, p+1); } return idx; };
-
-        // Mark exact positional features first so they are never overwritten
-        const term = this.selectedTermEnzyme || this.ENZYMES["FokI"];
-        if (modNum === 1 && (seqType === 'forward' || seqType === 'pcr')) {
-            mark(2 + term.recognition.length + term.bufferTEFw.length, 4, { kind: 'overhang' });
-        }
-        if (modNum === totalMods && (seqType === 'reverse' || seqType === 'pcr')) {
-            if (seqType === 'reverse') {
-                mark(2 + term.recognition.length + term.bufferTERv.length, 4, { kind: 'overhang' });
-            } else {
-                mark(n - (4 + term.bufferTERv.length + term.recognition.length + 2), 4, { kind: 'overhang' });
-            }
-        }
-
-        ['AAAAAAAAAA', 'TTTTTTTTTT'].forEach(run => findAll(run).forEach(p => mark(p, run.length, { kind: 'poly' })));
-        findAll(this.sequences.tRNA_core).forEach(p => mark(p, this.sequences.tRNA_core.length, { kind: 'trna' }));
-        findAll(this.sequences.tRNA_f1).forEach(p => mark(p, this.sequences.tRNA_f1.length, { kind: 'trna' }));
-        findAll(this.sequences.tRNA_tail).forEach(p => mark(p, this.sequences.tRNA_tail.length, { kind: 'trna' }));
-        findAll(this.sequences.gRNA_core).forEach(p => mark(p, this.sequences.gRNA_core.length, { kind: 'grna' }));
-        findAll(this.sequences.scaffold).forEach(p => mark(p, this.sequences.scaffold.length, { kind: 'grna' }));
-        
-        const frags = this.getSpacerFragments();
-        Object.keys(frags).filter(Boolean).sort((a,b)=>b.length-a.length).forEach(f => findAll(f).forEach(p => mark(p, f.length, { kind:'spacer', color: frags[f] })));
-        
-        const es = this.enzymeSites(sequence);
-        es.filter(s => !s.internal).forEach(s => mark(s.start, s.len, { kind: 'enzyme', className: s.className }));
-
-        const wrap = (a, text) => {
-            if (!a) return text;
-            switch (a.kind) {
-                case 'poly': return `<span class="seq-polyA">${text}</span>`;
-                case 'trna': return `<span class="seq-tRNA">${text}</span>`;
-                case 'grna': return `<span class="seq-gRNA-scaffold">${text}</span>`;
-                case 'spacer': return `<span class="spacer-tracked" style="color: ${a.color}; font-weight: bold;">${text}</span>`;
-                case 'enzyme': return `<span class="${a.className}">${text}</span>`;
-                case 'overhang': return `<span class="seq-overhang">${text}</span>`;
-                default: return text;
-            }
-        };
-
-        let out = '', i = 0;
-        while (i < n) {
-            let j = i + 1;
-            while (j < n && annot[j] === annot[i]) j++;
-            out += wrap(annot[i], sequence.substring(i, j));
-            i = j;
-        }
-        return out;
-    }
-
-    // Internal sites for the status banner / alert list — derived from the SAME enzymeSites()
-    // computation used to flag the rendered sequence, so the two can never disagree.
+    // Stray TERMINAL-enzyme sites in the final assembly — drives the assembly status banner.
     findInternalSites(results) {
         if (!results || !results.finalAssembly) return [];
-        return this.enzymeSites(results.finalAssembly)
+        return this.enzymeSites(results.finalAssembly, 'final')
             .filter(s => s.internal)
             .map(s => ({ type: s.type, motif: s.motif, pos: s.start }));
+    }
+
+    // Stray GOLDEN GATE sites across every module card — drives the module-stage warning block.
+    findModuleInternalSites(results) {
+        if (!results || !Array.isArray(results.modules)) return [];
+        const total = results.modules.length;
+        const found = [];
+        results.modules.forEach(m => {
+            [['forward', m.forward, 'forward'], ['reverse', m.reverse, 'reverse'],
+             ['pcr', m.pcr, 'pcr'], ['digest', m.digest, 'digest']].forEach(([view, part]) => {
+                if (!part || !part.sequence) return;
+                this.enzymeSites(part.sequence, view, m.moduleNumber, total)
+                    .filter(s => s.internal)
+                    .forEach(s => found.push({
+                        module: m.moduleNumber, part: part.name || view,
+                        type: s.type, motif: s.motif, pos: s.start
+                    }));
+            });
+        });
+        return found;
     }
 
     generateResultsHTML(results) {
@@ -1182,23 +1123,30 @@ class PTGDesigner {
             this.selectedScaffold = this.SCAFFOLDS[results.config.scaffoldId] || this.SCAFFOLDS['scaffold2'];
             this.selectedGGEnzyme = this.ENZYMES[results.config.ggId] || this.ENZYMES['BsaI'];
             this.selectedTermEnzyme = this.ENZYMES[results.config.termId] || this.ENZYMES['FokI'];
-            this.selectedGGEnzymeName = results.config.ggId;
-            this.selectedTermEnzymeName = results.config.termId;
+            this.selectedGGEnzymeName = results.config.ggId || 'BsaI';
+            this.selectedTermEnzymeName = results.config.termId || 'FokI';
             this.sequences.scaffold = this.selectedScaffold.sequence.substring(0, this.selectedScaffold.anchorLength);
             this.sequences.gRNA_core = this.selectedScaffold.sequence;
-            ggName = results.config.ggName;
-            termName = results.config.termName;
-            ggId = results.config.ggId;
-            termId = results.config.termId;
+            // A payload stored before `ggName` existed would otherwise render "undefined".
+            ggName = results.config.ggName || results.config.ggId || 'BsaI';
+            termName = results.config.termName || results.config.termId || 'FokI';
+            ggId = results.config.ggId || 'BsaI';
+            termId = results.config.termId || 'FokI';
         } else {
+            // Set all five fields symmetrically, or enzymeSites() falls back to the
+            // 'BsaI'/'FokI' literals and mislabels the alert list.
+            this.selectedScaffold = this.SCAFFOLDS['scaffold2'];
             this.selectedGGEnzyme = this.ENZYMES['BsaI'];
             this.selectedTermEnzyme = this.ENZYMES['FokI'];
+            this.selectedGGEnzymeName = 'BsaI';
+            this.selectedTermEnzymeName = 'FokI';
         }
 
         
         if (results.spacers && results.spacers.length > 0) {
             this.currentSpacers = results.spacers;
             this.spacerColors = this.assignSpacerColors(results.spacers);
+            this._spacerFragments = null;
         }
 
         const scaffoldLabel = (this.selectedScaffold && this.selectedScaffold.label) || 'Scaffold 2 — engineered (86 nt)';
@@ -1214,28 +1162,24 @@ class PTGDesigner {
             `<span class="legend-chip" style="background: ${this.spacerColors[s]}; color: #fff;"><i class="bi bi-circle-fill"></i> Spacer ${i + 1}</span>`
         ).join('');
 
-        const internalSites = this.findInternalSites(results, termName, ggName, termId, ggId);
+        // Assembly scope: stray TERMINAL sites only (the GG enzyme is spent by this stage).
+        const internalSites = this.findInternalSites(results);
         const hasInternal = internalSites.length > 0;
+        // Module scope: stray GOLDEN GATE sites only (the only enzyme applied at that stage).
+        const moduleSites = this.findModuleInternalSites(results);
         
         let titleStatus = '';
         if (hasInternal) {
-            const hasGG = internalSites.some(s => s.type.includes('Golden Gate Enzyme'));
-            const hasTE = internalSites.some(s => s.type.includes('Terminal Enzyme'));
-            let identifiedStr = '';
-            if (hasGG && hasTE) identifiedStr = 'Terminal Enzyme and Golden Gate Enzyme';
-            else if (hasGG) identifiedStr = 'Golden Gate Enzyme';
-            else if (hasTE) identifiedStr = 'Terminal Enzyme';
-            
-            titleStatus = `<span style="color: #991b1b; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-x-circle-fill"></i> Internal recognition sites identified for ${identifiedStr}</span>`;
+            titleStatus = `<span style="color: #991b1b; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-x-circle-fill"></i> Internal ${termName} (Terminal Enzyme) recognition sites identified</span>`;
         } else {
-            titleStatus = `<span style="color: #166534; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-check-circle-fill"></i> No internal recognition sites identified for Terminal Enzyme or Golden Gate Enzyme</span>`;
+            titleStatus = `<span style="color: #166534; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-check-circle-fill"></i> No internal ${termName} (Terminal Enzyme) recognition sites identified</span>`;
         }
             
         let internalSitesHtml = '';
         if (hasInternal) {
             internalSitesHtml = `
             <div class="internal-sites-alert" style="margin-top: 12px; background: #fef2f2; border: 1px solid #fca5a5; padding: 10px 16px; border-radius: 8px; color: #991b1b; font-size: 0.85em; font-family: 'Roboto', sans-serif;">
-                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal Recognition Sites Found:</strong>
+                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal ${termName} (Terminal Enzyme) sites in the assembly &mdash; these would cut the cassette during vector cloning:</strong>
                 <ul style="margin: 0; padding-left: 20px; line-height: 1.5;">
                     ${internalSites.map(s => `<li>${s.type} at position ${s.pos + 1} (${s.motif})</li>`).join('')}
                 </ul>
@@ -1243,6 +1187,19 @@ class PTGDesigner {
         }
 
         const lengthMatch = results.assemblyDetails.totalLength === results.assemblyDetails.expectedLength ? "✔️" : "⚠️";
+
+        // Module-stage warning block, shown with the module analysis rather than inside the
+        // assembly card, so each warning sits beside the stage it concerns.
+        let moduleSitesHtml = '';
+        if (moduleSites.length > 0) {
+            moduleSitesHtml = `
+            <div class="internal-sites-alert" style="margin-bottom: 16px; background: #fef2f2; border: 1px solid #fca5a5; padding: 10px 16px; border-radius: 8px; color: #991b1b; font-size: 0.85em; font-family: 'Roboto', sans-serif;">
+                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal ${ggName} (Golden Gate Enzyme) sites in ${moduleSites.length} module sequence${moduleSites.length === 1 ? '' : 's'} &mdash; these would mis-digest during assembly:</strong>
+                <ul style="margin: 0; padding-left: 20px; line-height: 1.5;">
+                    ${moduleSites.map(s => `<li>Module ${s.module} &mdash; ${s.part} at position ${s.pos + 1} (${s.motif})</li>`).join('')}
+                </ul>
+            </div>`;
+        }
         
         let modulesHTML = '';
         results.modules.forEach(module => {
@@ -1508,9 +1465,9 @@ class PTGDesigner {
         }
         .legend-chip.chip-trna      { background: #16a34a; color: #fff; }
         .legend-chip.chip-grna      { background: #9333ea; color: #fff; }
-        .legend-chip.chip-spacer    { background: #ef4444; color: #fff; }
-        .legend-chip.chip-bsai      { background: #0ea5e9; color: #fff; border: 1px solid rgba(255,255,255,0.3); }
-        .legend-chip.chip-foki      { background: #eab308; color: #1a202c; border: 1px solid rgba(255,255,255,0.3); }
+        .legend-chip.chip-gg-site   { background: #0ea5e9; color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+        .legend-chip.chip-term-site { background: #eab308; color: #1a202c; border: 1px solid rgba(255,255,255,0.3); }
+        .legend-chip.chip-internal-site { background: transparent; color: #991b1b; border: 3px solid #ef4444; }
         .legend-chip.chip-polya     { background: #f15bb5; color: #fff; }
         .legend-chip i { font-size: 0.7em; }
 
@@ -1667,16 +1624,17 @@ class PTGDesigner {
         /* --- PTG Sequence Color Coding — Modern Pill Style --- */
         .seq-tRNA { background-color: #16a34a; color: #fff; font-weight: 600; padding: 1px 4px; border-radius: 4px; font-family: 'Fira Code', monospace; }
         .seq-gRNA-scaffold { background-color: #9333ea; color: #fff; font-weight: 600; padding: 1px 4px; border-radius: 4px; font-family: 'Fira Code', monospace; }
-        .seq-spacer { background-color: #ef4444; color: #fff; font-weight: 600; padding: 1px 4px; border-radius: 4px; font-family: 'Fira Code', monospace; }
-        .seq-bsaI { background-color: #0ea5e9 !important; color: #fff !important; font-weight: 600; padding: 2px 5px; border-radius: 4px; border: 1.5px solid #0284c7 !important; z-index: 15 !important; position: relative; font-family: 'Fira Code', monospace; }
-        .seq-fokI { background-color: #eab308 !important; color: #1a202c !important; font-weight: 600; padding: 2px 5px; border-radius: 4px; border: 1.5px solid #ca8a04 !important; z-index: 15 !important; position: relative; font-family: 'Fira Code', monospace; }
+        /* Role-based, not enzyme-based: either of the 12 selectable enzymes can hold either role,
+           and one enzyme can hold both at once (coloured per role, per position). */
+        .seq-gg-site { background-color: #0ea5e9 !important; color: #fff !important; font-weight: 600; padding: 2px 5px; border-radius: 4px; border: 1.5px solid #0284c7 !important; z-index: 15 !important; position: relative; font-family: 'Fira Code', monospace; }
+        .seq-term-site { background-color: #eab308 !important; color: #1a202c !important; font-weight: 600; padding: 2px 5px; border-radius: 4px; border: 1.5px solid #ca8a04 !important; z-index: 15 !important; position: relative; font-family: 'Fira Code', monospace; }
         .seq-overhang { color: #0d00a4; font-weight: bold; font-family: 'Fira Code', monospace; }
         /* Internal recognition site: a plain square outline in red
            colour (border-color is set inline per site). It only draws a box around the problem area —
            background and text colour are left untouched so every underlying element stays visible. */
-        .seq-internal-site { border-width: 3px; border-style: solid; border-radius: 0; padding: 1px 0; }
+        .seq-internal-site { border: 3px solid #ef4444; border-radius: 0; padding: 1px 0; }
         .seq-polyA { color: #f15bb5; font-weight: 600; font-family: 'Fira Code', monospace; }
-        .spacer-text { color: #ef4444; font-weight: 600; background: none !important; padding: 0; border: none !important; font-family: 'Fira Code', monospace; }
+        .spacer-tracked { font-weight: bold; font-family: 'Fira Code', monospace; }
 
         /* --- Responsive --- */
         @media (max-width: 1200px) {
@@ -1715,7 +1673,7 @@ class PTGDesigner {
 
         <!-- Final Assembly -->
         <div class="final-assembly">
-            <h2><i class="bi bi-layers"></i> ${results.assemblyDetails.finalAssemblyName} - ${titleStatus}</h2>
+            <h2><i class="bi bi-layers"></i> ${results.assemblyDetails.finalAssemblyName || 'Final PTG Assembly'} - ${titleStatus}</h2>
             <div class="assembly-sequence">${this.colorCodeSequence(results.finalAssembly, 'final_assembly')}</div>
             <div class="assembly-stats">
                 Computed length: ${results.assemblyDetails.totalLength} bp &nbsp;|&nbsp; Expected length: ${results.assemblyDetails.expectedLength} bp &nbsp;${lengthMatch}
@@ -1739,14 +1697,16 @@ class PTGDesigner {
                     <span class="legend-chip chip-trna"><i class="bi bi-circle-fill"></i> tRNA</span>
                     <span class="legend-chip chip-grna"><i class="bi bi-circle-fill"></i> gRNA Scaffold</span>
                     ${spacerLegendChips}
-                    <span class="legend-chip chip-foki"><i class="bi bi-circle-fill"></i> ${termName} Sites (${termRecog}/${termRecogRC})</span>
-                    <span class="legend-chip chip-bsai"><i class="bi bi-circle-fill"></i> ${ggName} Sites (${ggRecog}/${ggRecogRC})</span>
+                    <span class="legend-chip chip-term-site"><i class="bi bi-circle-fill"></i> Terminal enzyme &mdash; ${termName} (${termRecog}/${termRecogRC})</span>
+                    <span class="legend-chip chip-gg-site"><i class="bi bi-circle-fill"></i> Golden Gate junction &mdash; ${ggName} (${ggRecog}/${ggRecogRC})</span>
+                    <span class="legend-chip chip-internal-site"><i class="bi bi-exclamation-triangle-fill"></i> Internal recognition site (error)</span>
                     <span class="legend-chip chip-polya"><i class="bi bi-circle-fill"></i> Poly-A/T Tail</span>
                     <span class="legend-chip" style="background: #0d00a4; color: #fff;"><i class="bi bi-circle-fill"></i> Cas9 Vector Overhang</span>
                 </div>
             </div>
 
             <h2 class="section-heading"><i class="bi bi-grid-3x3-gap"></i> Module Analysis</h2>
+            ${moduleSitesHtml}
             ${modulesHTML}
         </div>
     </div>

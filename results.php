@@ -4,10 +4,10 @@ $active_page = "tool";
 // Results render purely from client-side data (empty when crawled) — keep it out of the index.
 $page_robots = "noindex, follow";
 $extra_scripts = '
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="assets/js/ptg-designer.js?v=5.11"></script>
-<script src="assets/js/ptg-export.js?v=5.4"></script>
-<script src="assets/js/ptg-app.js?v=5.0"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="assets/js/ptg-designer.js?v=5.13"></script>
+<script defer src="assets/js/ptg-export.js?v=5.5"></script>
+<script defer src="assets/js/ptg-app.js?v=5.0"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const resultsDataStr = localStorage.getItem("ptg_results_data");
