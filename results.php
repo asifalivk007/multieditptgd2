@@ -5,7 +5,7 @@ $active_page = "tool";
 $page_robots = "noindex, follow";
 $extra_scripts = '
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script defer src="assets/js/ptg-designer.js?v=5.13"></script>
+<script defer src="assets/js/ptg-designer.js?v=5.14"></script>
 <script defer src="assets/js/ptg-export.js?v=5.5"></script>
 <script defer src="assets/js/ptg-app.js?v=5.0"></script>
 <script>

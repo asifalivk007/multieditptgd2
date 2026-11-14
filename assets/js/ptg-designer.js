@@ -1170,16 +1170,16 @@ class PTGDesigner {
         
         let titleStatus = '';
         if (hasInternal) {
-            titleStatus = `<span style="color: #991b1b; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-x-circle-fill"></i> Internal ${termName} (Terminal Enzyme) recognition sites identified</span>`;
+            titleStatus = `<span style="color: #991b1b; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-x-circle-fill"></i> Internal recognition sites identified for Terminal Enzyme</span>`;
         } else {
-            titleStatus = `<span style="color: #166534; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-check-circle-fill"></i> No internal ${termName} (Terminal Enzyme) recognition sites identified</span>`;
+            titleStatus = `<span style="color: #166534; font-size: 0.85em; margin-left: 10px;"><i class="bi bi-check-circle-fill"></i> No internal recognition sites identified for Terminal Enzyme</span>`;
         }
             
         let internalSitesHtml = '';
         if (hasInternal) {
             internalSitesHtml = `
             <div class="internal-sites-alert" style="margin-top: 12px; background: #fef2f2; border: 1px solid #fca5a5; padding: 10px 16px; border-radius: 8px; color: #991b1b; font-size: 0.85em; font-family: 'Roboto', sans-serif;">
-                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal ${termName} (Terminal Enzyme) sites in the assembly &mdash; these would cut the cassette during vector cloning:</strong>
+                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal Recognition Sites Found:</strong>
                 <ul style="margin: 0; padding-left: 20px; line-height: 1.5;">
                     ${internalSites.map(s => `<li>${s.type} at position ${s.pos + 1} (${s.motif})</li>`).join('')}
                 </ul>
@@ -1192,11 +1192,30 @@ class PTGDesigner {
         // assembly card, so each warning sits beside the stage it concerns.
         let moduleSitesHtml = '';
         if (moduleSites.length > 0) {
+            // One bullet per MODULE: every hit inside the same module is listed on that
+            // module's line; a new bullet appears only for a different module.
+            const ordinal = (n) => {
+                const suf = ['th', 'st', 'nd', 'rd'], v = n % 100;
+                return n + (suf[(v - 20) % 10] || suf[v] || suf[0]);
+            };
+            const andList = (arr) => arr.length === 1
+                ? arr[0]
+                : arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
+
+            const byModule = [];
+            moduleSites.forEach(site => {
+                let row = byModule.find(r => r.module === site.module);
+                if (!row) { row = { module: site.module, hits: [] }; byModule.push(row); }
+                row.hits.push(`${site.part} at position ${site.pos + 1} (${site.motif})`);
+            });
+            byModule.sort((a, b) => a.module - b.module);
+            const moduleLabel = andList(byModule.map(r => ordinal(r.module)));
+
             moduleSitesHtml = `
             <div class="internal-sites-alert" style="margin-bottom: 16px; background: #fef2f2; border: 1px solid #fca5a5; padding: 10px 16px; border-radius: 8px; color: #991b1b; font-size: 0.85em; font-family: 'Roboto', sans-serif;">
-                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal ${ggName} (Golden Gate Enzyme) sites in ${moduleSites.length} module sequence${moduleSites.length === 1 ? '' : 's'} &mdash; these would mis-digest during assembly:</strong>
+                <strong style="display: block; margin-bottom: 6px;"><i class="bi bi-exclamation-triangle-fill" style="color: #ef4444;"></i> Internal Recognition Sites Found for Golden Gate Enzyme (${ggName}) in ${moduleLabel} module${byModule.length === 1 ? '' : 's'}:</strong>
                 <ul style="margin: 0; padding-left: 20px; line-height: 1.5;">
-                    ${moduleSites.map(s => `<li>Module ${s.module} &mdash; ${s.part} at position ${s.pos + 1} (${s.motif})</li>`).join('')}
+                    ${byModule.map(r => `<li>Module ${r.module} &mdash; ${r.hits.join(', ')}</li>`).join('')}
                 </ul>
             </div>`;
         }
@@ -1467,7 +1486,6 @@ class PTGDesigner {
         .legend-chip.chip-grna      { background: #9333ea; color: #fff; }
         .legend-chip.chip-gg-site   { background: #0ea5e9; color: #fff; border: 1px solid rgba(255,255,255,0.3); }
         .legend-chip.chip-term-site { background: #eab308; color: #1a202c; border: 1px solid rgba(255,255,255,0.3); }
-        .legend-chip.chip-internal-site { background: transparent; color: #991b1b; border: 3px solid #ef4444; }
         .legend-chip.chip-polya     { background: #f15bb5; color: #fff; }
         .legend-chip i { font-size: 0.7em; }
 
@@ -1697,9 +1715,8 @@ class PTGDesigner {
                     <span class="legend-chip chip-trna"><i class="bi bi-circle-fill"></i> tRNA</span>
                     <span class="legend-chip chip-grna"><i class="bi bi-circle-fill"></i> gRNA Scaffold</span>
                     ${spacerLegendChips}
-                    <span class="legend-chip chip-term-site"><i class="bi bi-circle-fill"></i> Terminal enzyme &mdash; ${termName} (${termRecog}/${termRecogRC})</span>
-                    <span class="legend-chip chip-gg-site"><i class="bi bi-circle-fill"></i> Golden Gate junction &mdash; ${ggName} (${ggRecog}/${ggRecogRC})</span>
-                    <span class="legend-chip chip-internal-site"><i class="bi bi-exclamation-triangle-fill"></i> Internal recognition site (error)</span>
+                    <span class="legend-chip chip-term-site"><i class="bi bi-circle-fill"></i> ${termName} Sites (${termRecog}/${termRecogRC})</span>
+                    <span class="legend-chip chip-gg-site"><i class="bi bi-circle-fill"></i> ${ggName} Sites (${ggRecog}/${ggRecogRC})</span>
                     <span class="legend-chip chip-polya"><i class="bi bi-circle-fill"></i> Poly-A/T Tail</span>
                     <span class="legend-chip" style="background: #0d00a4; color: #fff;"><i class="bi bi-circle-fill"></i> Cas9 Vector Overhang</span>
                 </div>
